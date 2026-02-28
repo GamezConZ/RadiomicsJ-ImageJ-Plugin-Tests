@@ -77,9 +77,12 @@ import javax.swing.SwingWorker;
 import common.RadiomicsPipeline;
 import common.RadiomicsSettings;
 import common.SettingsContext;
+import ij.IJ;
 import ij.ImagePlus;
 import ij.measure.ResultsTable;
 import ij.plugin.FolderOpener;
+import ij.process.ImageProcessor;
+import ij.process.StackStatistics;
 
 
 /**
@@ -545,7 +548,7 @@ public class RadiomicsBatchModePanel extends JPanel {
      * @param maskParentDir  Maskフォルダ (例: .../Masks)
      * @return 検証に成功した場合は true、致命的な不備が見つかった場合は false
      */
-	public boolean validateDataset(String imageParentDirPath, String maskParentDirPath) {
+	public boolean validateImageAndMaskArePaired(String imageParentDirPath, String maskParentDirPath) {
 		clearLog();
 		log("=== Check Dataset ===");
 		
@@ -836,6 +839,48 @@ public class RadiomicsBatchModePanel extends JPanel {
 		return nonImageFiles;
 	}
 	
+	private boolean isValidMask(ImagePlus mask, int label) {
+		if (mask == null) {
+			return false;
+		}
+		boolean maskInRange255 = io.github.tatsunidas.radiomics.main.Utils.isValidMaskLabel(label);
+		boolean maskHasLabel = false;
+		// 1. StackStatisticsを使って画像全体の統計情報を取得
+		StackStatistics stats = new StackStatistics(mask);
+
+		// 2. 最小値と最大値による高速な足切り
+		// 探している値が、画像の持つ値の範囲外であれば即座に false を返す
+		if (label < stats.min || label > stats.max) {
+			return false;
+		}
+
+		// 3. 範囲内の場合は、実際にその値が存在するか全ピクセルをスキャンする
+		int stackSize = mask.getStackSize();
+
+		// スタックの各スライス（単一画像の場合は1回だけループ）を確認
+		for (int z = 1; z <= stackSize; z++) {
+			ImageProcessor ip = mask.getStack().getProcessor(z);
+			int width = ip.getWidth();
+			int height = ip.getHeight();
+
+			// ピクセルデータを走査
+			for (int y = 0; y < height; y++) {
+				for (int x = 0; x < width; x++) {
+					// getf(x, y) はキャリブレーションされていない生のピクセル値をfloatで取得します
+					float pixelValue = ip.getf(x, y);
+
+					if (pixelValue == (float) label) {
+						maskHasLabel = true; // 見つかった時点で true を返して終了
+					}
+					if(maskInRange255 && maskHasLabel) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
+	
 	/**
      * バッチ処理を実行するための SwingWorker インナークラス
      * <Void, String>
@@ -877,7 +922,7 @@ public class RadiomicsBatchModePanel extends JPanel {
 			// (validateDataset が内部で log() を呼ぶ場合、
 			// そのログを publish するために getLog() を使う)
 			clearLog(); // 親クラスのログバッファをクリア
-			if (!validateDataset(imageParentDir, maskParentDir)) {
+			if (!validateImageAndMaskArePaired(imageParentDir, maskParentDir)) {
 				publish(getLog()); // 検証ログをGUIに送信
 				throw new Exception("Dataset validation failed.");
 			}
@@ -898,6 +943,7 @@ public class RadiomicsBatchModePanel extends JPanel {
 				throw new Exception("Process image and mask pair not found.");
 			}
 			
+			IJ.log("Load setting properties from UI to calculate features...");
 			RadiomicsPipeline radpipe = new RadiomicsPipeline(radSettings);
 			Properties settingProp = radSettings.currentSettings();
 			List<String> featureNames = radSettings.getTargetFeatureNames();
@@ -963,6 +1009,11 @@ public class RadiomicsBatchModePanel extends JPanel {
 
 				if (impImage == null || impMask == null) {
 					publish(" (Warinig) [" + caseName + "] Image or Mask cannot read. skip it.");
+					continue; // 次の症例へ
+				}
+				
+				if(!isValidMask(impMask, targetLabel)) {
+					publish(" (Warinig) [" + caseName + "] Mask does not have valid target label (current label is "+ targetLabel +"). skip it.");
 					continue; // 次の症例へ
 				}
 

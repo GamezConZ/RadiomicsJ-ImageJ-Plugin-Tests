@@ -428,6 +428,26 @@ public class RadiomicsVisualizationPanel extends JPanel {
 		boolean d3_mode = Boolean.valueOf((String) settingsProp.get(SettingsContext.D3Basis));
 		boolean d2_mode = d3_mode == false;
 		
+		// get mask label
+		String val = settingsProp.getProperty(SettingsContext.MASK_LABEL);
+		if (val == null || val.equals("") || val.toLowerCase().equals("null")) {
+			// keep default
+			throw new IllegalArgumentException("RadiomicsPipeline:preprocessing() require MASK_LABEL...");
+		}
+		int targetLabel = -1;// mask label
+		try {
+			targetLabel = Integer.valueOf(val);
+		} catch (NumberFormatException e) {
+			throw e;
+		}
+
+		if (!isValidMask(new ImagePlus("", this.maskImage.getStack().getProcessor(originalImage.getCurrentSlice())), targetLabel)) {
+			IJ.log("This mask does not have specified mask label. skip it.");
+			JOptionPane.showMessageDialog(this, "Please set valid mask label on textture param panel first.",
+					"MASK LABEL not match", JOptionPane.WARNING_MESSAGE);
+			return;
+		}
+		
 		FeatureSpecifier<RadiomicsFeature> featuresToCalculate = new FeatureSpecifier<>(
 				radSetting.loadClass(familyAndFeature[0]+"Features"),
 				radSetting.loadFeatureType(familyAndFeature), 
@@ -480,6 +500,26 @@ public class RadiomicsVisualizationPanel extends JPanel {
 		
 		boolean d3_mode = Boolean.valueOf((String)settingsProp.get(SettingsContext.D3Basis));
 		boolean d2_mode = d3_mode == false;
+		
+		// get mask label
+		String val = settingsProp.getProperty(SettingsContext.MASK_LABEL);
+		if(val == null || val.equals("") || val.toLowerCase().equals("null") ) {
+			//keep default
+			throw new IllegalArgumentException("RadiomicsPipeline:preprocessing() require MASK_LABEL...");
+		}
+		int targetLabel = -1;//mask label
+		try {
+			targetLabel = Integer.valueOf(val);
+		}catch(NumberFormatException e) {
+			throw e;
+		}
+		
+		if(!isValidMask(this.maskImage, targetLabel)) {
+			IJ.log("This mask does not have specified mask label. skip it.");
+			JOptionPane.showMessageDialog(this, "Please set valid mask label on textture param panel first.", "MASK LABEL not match",
+					JOptionPane.WARNING_MESSAGE);
+			return;
+		}
 		
 		FeatureSpecifier<RadiomicsFeature> featuresToCalculate = new FeatureSpecifier<>(
 				radSetting.loadClass(familyAndFeature[0] + "Features"), radSetting.loadFeatureType(familyAndFeature),
@@ -757,6 +797,54 @@ public class RadiomicsVisualizationPanel extends JPanel {
 			}
 		}
 		return true;
+	}
+	
+	/**
+	 * See also RadiomicsBatchModePanel, has same method. TODO re-factoring.
+	 * @param mask
+	 * @param label
+	 * @return
+	 */
+	private boolean isValidMask(ImagePlus mask, int label) {
+		if (mask == null) {
+			return false;
+		}
+		boolean maskInRange255 = io.github.tatsunidas.radiomics.main.Utils.isValidMaskLabel(label);
+		boolean maskHasLabel = false;
+		// 1. StackStatisticsを使って画像全体の統計情報を取得
+		StackStatistics stats = new StackStatistics(mask);
+
+		// 2. 最小値と最大値による高速な足切り
+		// 探している値が、画像の持つ値の範囲外であれば即座に false を返す
+		if (label < stats.min || label > stats.max) {
+			return false;
+		}
+
+		// 3. 範囲内の場合は、実際にその値が存在するか全ピクセルをスキャンする
+		int stackSize = mask.getStackSize();
+
+		// スタックの各スライス（単一画像の場合は1回だけループ）を確認
+		for (int z = 1; z <= stackSize; z++) {
+			ImageProcessor ip = mask.getStack().getProcessor(z);
+			int width = ip.getWidth();
+			int height = ip.getHeight();
+
+			// ピクセルデータを走査
+			for (int y = 0; y < height; y++) {
+				for (int x = 0; x < width; x++) {
+					// getf(x, y) はキャリブレーションされていない生のピクセル値をfloatで取得します
+					float pixelValue = ip.getf(x, y);
+
+					if (pixelValue == (float) label) {
+						maskHasLabel = true; // 見つかった時点で true を返して終了
+					}
+					if(maskInRange255 && maskHasLabel) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
 	}
 	
 	private Map<String, Object> settingsMap(String[] fam_and_feature, Properties currentProp) {

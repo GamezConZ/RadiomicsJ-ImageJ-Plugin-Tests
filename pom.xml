@@ -10,7 +10,7 @@
   
   <groupId>com.vis.imagej</groupId>
   <artifactId>RadiomicsJ_ImageJPlugin</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>0.0.2-SNAPSHOT</version>
   <name>RadiomicsJ-ImageJ-Plugin</name>
   
   <description>Radiomics feature extraction plugin for ImageJ.</description>
