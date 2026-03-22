@@ -383,36 +383,44 @@ public class RadiomicsPipeline {
 		NGLDMFeatures ngldm = null;
 		FractalFeatures ff = null;
 		
+		ij.IJ.log("--- Starting matrix initialization (computationally heavy step) ---");
+		
 		for(String fname : featureNames) {
 			String fam = fname.split("_")[0];//full family name
 			switch(fam) {
 			case SettingsContext.SHAPE2D:
 				if(shape2d!=null) break;
+				ij.IJ.log("> Initializing Shape2D...");
 				shape2d = new Shape2DFeatures(imp, mask,1,label);
 				break;
 			case SettingsContext.MORPHOLOGICAL:
 				if(mf!=null) break;
+				ij.IJ.log("> Initializing Morphological...");
 				mf = new MorphologicalFeatures(imp, mask, label);
 				break;
 			case SettingsContext.LOCALINTENSITY:
 				if(lif!=null) break;
+				ij.IJ.log("> Initializing LocalIntensity...");
 				lif = new LocalIntensityFeatures(imp, mask, label);
 				break;
 			case SettingsContext.INTENSITYSTATS:
 				if(isf!=null) break;
+				ij.IJ.log("> Initializing IntensityStats...");
 				isf = new IntensityBasedStatisticalFeatures(imp, mask, label);
 				break;
 			case SettingsContext.INTENSITYHISTOGRAM:
 				if(ihf!=null) break;
+				ij.IJ.log("> Initializing IntensityHistogram...");
 				try {
 					ihf = new IntensityHistogramFeatures(imp, mask, label, useBinCountHist, binCountHist,binWidthHist);
 				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					ij.IJ.log("[ERROR] Failed to initialize IntensityHistogram: " + e.getMessage());
+					ihf = null;
 				}
 				break;
 			case SettingsContext.INTENSITYVOLUMEHISTOGRAM:
 				if(ivhf!=null) break;
+				ij.IJ.log("> Initializing IntensityVolumeHistogram...");
 				int mode = 0;
 				if(useOriginalIVH==false && useBinCountIVH==false) {
 					mode=1;
@@ -424,72 +432,81 @@ public class RadiomicsPipeline {
 				try {
 					ivhf = new IntensityVolumeHistogramFeatures(imp, mask, label, mode);
 				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					ij.IJ.log("[ERROR] Failed to initialize IntensityVolumeHistogram: " + e.getMessage());
+					ivhf = null;
 				}
 				break;
 			case SettingsContext.GLCM:
 				if(glcm!=null) break;
+				ij.IJ.log("> Initializing GLCM (This can be very slow with a fine Bin Width)...");
 				try {
 					glcm = new GLCMFeatures(imp, mask, label, deltaGLCM, useBinCountGLCM, binCountGLCM, binWidthGLCM, null);
 				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					ij.IJ.log("[ERROR] Failed to initialize GLCM: " + e.getMessage());
+					glcm = null;
 				}
 				break;
 			case SettingsContext.GLRLM:
 				if(glrlm!=null) break;
+				ij.IJ.log("> Initializing GLRLM (This can be very slow with a fine Bin Width)...");
 				try {
 					glrlm = new GLRLMFeatures(imp, mask, label, useBinCountGLRLM, binCountGLRLM, binWidthGLRLM, null);
 				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					ij.IJ.log("[ERROR] Failed to initialize GLRLM: " + e.getMessage());
+					glrlm = null;
 				}
 				break;
 			case SettingsContext.GLSZM:
 				if(glszm!=null) break;
+				ij.IJ.log("> Initializing GLSZM...");
 				try {
 					glszm = new GLSZMFeatures(imp, mask, label, useBinCountGLSZM, binCountGLSZM, binWidthGLSZM);
 				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					ij.IJ.log("[ERROR] Failed to initialize GLSZM: " + e.getMessage());
+					glszm = null;
 				}
 				break;
 			case SettingsContext.GLDZM:
 				if(gldzm!=null) break;
+				ij.IJ.log("> Initializing GLDZM...");
 				try {
 					gldzm = new GLDZMFeatures(imp, mask, label, useBinCountGLDZM, binCountGLDZM, binWidthGLDZM);
 				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					ij.IJ.log("[ERROR] Failed to initialize GLDZM: " + e.getMessage());
+					gldzm = null;
 				}
 				break;
 			case SettingsContext.NGTDM:
 				if(ngtdm!=null) break;
+				ij.IJ.log("> Initializing NGTDM...");
 				try {
 					ngtdm = new NGTDMFeatures(imp, mask, label, deltaNGTDM, useBinCountNGTDM, binCountNGTDM, binWidthNGTDM);
 				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					ij.IJ.log("[ERROR] Failed to initialize NGTDM: " + e.getMessage());
+					ngtdm = null;
 				}
 				break;
 			case SettingsContext.NGLDM:
 				if(ngldm!=null) break;
+				ij.IJ.log("> Initializing NGLDM...");
 				try {
 					ngldm = new NGLDMFeatures(imp, mask, label,alphaNGLDM, deltaNGLDM, useBinCountNGLDM, binCountNGLDM, binWidthNGLDM);
 				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					ij.IJ.log("[ERROR] Failed to initialize NGLDM: " + e.getMessage());
+					ngldm = null;
 				}
 				break;
 			case SettingsContext.FRACTAL:
 				if(ff!=null) break;
+				ij.IJ.log("> Initializing Fractal...");
 				ff = new FractalFeatures(imp, mask, label, convertCommaSeparatedStringToIntArray(boxSizes));
 				break;
 			default:
 				//do nothing
 			}
 		}
+		
+		ij.IJ.log("--- Matrices initialized. Extracting numerical values ---");
 		
 		//execute all feature calculations
 		for(String fname : featureNames) {
